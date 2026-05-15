@@ -24,10 +24,12 @@ export default function App() {
     }
   }, []);
 
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
   const handleAuth = async (endpoint: "login" | "register") => {
     setAuthError("");
     try {
-      const response = await fetch(`http://localhost:3001/${endpoint}`, {
+      const response = await fetch(`${API_URL}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -60,7 +62,7 @@ export default function App() {
     setStatus("loading");
     setPageText("");
     try {
-      const response = await fetch("http://localhost:3001/fetch-page", {
+      const response = await fetch(`${API_URL}/fetch-page`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

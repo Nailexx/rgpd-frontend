@@ -21,7 +21,7 @@ db.exec(`
   )
 `);
 
-const JWT_SECRET = "change-moi-en-production-avec-une-vraie-cle-secrete";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-prod";
 
 // Middleware pour vérifier le token JWT
 function authMiddleware(req: any, res: any, next: any) {
