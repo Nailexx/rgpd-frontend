@@ -18,7 +18,16 @@ db.exec(`
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
+  );
+  
+  CREATE TABLE IF NOT EXISTS analyses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    page_text TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
 `);
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-prod";
@@ -73,8 +82,8 @@ app.post("/login", async (req, res) => {
   res.json({ token, email: user.email });
 });
 
-// Route protégée : analyse de page
-app.post("/fetch-page", authMiddleware, async (req, res) => {
+// Récupérer une page ET enregistrer l'analyse
+app.post("/fetch-page", authMiddleware, async (req: any, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: "URL manquante" });
 
@@ -84,10 +93,41 @@ app.post("/fetch-page", authMiddleware, async (req, res) => {
     const $ = cheerio.load(html);
     $("script, style, nav, footer, header").remove();
     const text = $("body").text().replace(/\s+/g, " ").trim().substring(0, 5000);
+
+    // Enregistrer dans l'historique
+    db.prepare("INSERT INTO analyses (user_id, url, page_text) VALUES (?, ?, ?)").run(
+      req.user.id, url, text
+    );
+
     res.json({ text });
   } catch {
     res.status(500).json({ error: "Impossible de récupérer la page" });
   }
 });
 
+// Lister les analyses de l'utilisateur
+app.get("/analyses", authMiddleware, (req: any, res) => {
+  const analyses = db.prepare(
+    "SELECT id, url, created_at FROM analyses WHERE user_id = ? ORDER BY created_at DESC LIMIT 50"
+  ).all(req.user.id);
+  res.json({ analyses });
+});
+
+// Récupérer une analyse spécifique
+app.get("/analyses/:id", authMiddleware, (req: any, res) => {
+  const analysis = db.prepare(
+    "SELECT * FROM analyses WHERE id = ? AND user_id = ?"
+  ).get(req.params.id, req.user.id);
+  if (!analysis) return res.status(404).json({ error: "Analyse introuvable" });
+  res.json(analysis);
+});
+
+// Supprimer une analyse
+app.delete("/analyses/:id", authMiddleware, (req: any, res) => {
+  const result = db.prepare(
+    "DELETE FROM analyses WHERE id = ? AND user_id = ?"
+  ).run(req.params.id, req.user.id);
+  if (result.changes === 0) return res.status(404).json({ error: "Analyse introuvable" });
+  res.json({ success: true });
+});
 app.listen(3001, () => console.log("Serveur backend démarré sur http://localhost:3001"));
