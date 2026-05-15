@@ -114,6 +114,19 @@ export default function App() {
     setPage("login");
   };
 
+  const deleteAccount = async () => {
+  if (!confirm("Êtes-vous sûr ? Toutes vos données seront supprimées définitivement.")) return;
+  try {
+    const response = await fetch(`${API_URL}/account`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      logout();
+    }
+  } catch {}
+};
+
   const fetchPage = async () => {
     if (!url) return;
     setStatus("loading");
@@ -204,6 +217,17 @@ export default function App() {
         <button onClick={logout} className="text-sm text-gray-400 hover:text-white transition-colors">
           Se déconnecter
         </button>
+        <div className="flex gap-3">
+  <button
+    onClick={deleteAccount}
+    className="text-sm text-red-400 hover:text-red-300 transition-colors"
+  >
+    Supprimer mon compte
+  </button>
+  <button onClick={logout} className="text-sm text-gray-400 hover:text-white transition-colors">
+    Se déconnecter
+  </button>
+</div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-3 gap-6">

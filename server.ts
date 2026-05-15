@@ -17,6 +17,16 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes("render.com") ? { rejectUnauthorized: false } : false,
 });
 
+// Supprimer son compte
+app.delete("/account", authMiddleware, async (req: any, res) => {
+  try {
+    await pool.query("DELETE FROM users WHERE id = $1", [req.user.id]);
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Erreur lors de la suppression" });
+  }
+});
+
 // Initialisation des tables
 async function initDb() {
   await pool.query(`
