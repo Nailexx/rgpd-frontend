@@ -1,26 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
+type Page = "login" | "register" | "app";
 type AnalysisStatus = "idle" | "loading" | "done" | "error";
 
 export default function App() {
+  const [page, setPage] = useState<Page>("login");
+  const [token, setToken] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState<AnalysisStatus>("idle");
   const [pageText, setPageText] = useState("");
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem("token");
+    const savedEmail = localStorage.getItem("email");
+    if (savedToken && savedEmail) {
+      setToken(savedToken);
+      setEmail(savedEmail);
+      setPage("app");
+    }
+  }, []);
+
+  const handleAuth = async (endpoint: "login" | "register") => {
+    setAuthError("");
+    try {
+      const response = await fetch(`http://localhost:3001/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setAuthError(data.error || "Erreur");
+        return;
+      }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("email", data.email);
+      setToken(data.token);
+      setPage("app");
+    } catch {
+      setAuthError("Impossible de contacter le serveur");
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("email");
+    setToken(null);
+    setEmail("");
+    setPassword("");
+    setPage("login");
+  };
 
   const fetchPage = async () => {
     if (!url) return;
     setStatus("loading");
     setPageText("");
-
     try {
       const response = await fetch("http://localhost:3001/fetch-page", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ url }),
       });
-
-      if (!response.ok) throw new Error("Erreur serveur");
-      const data = await response.json() as { text: string };
+      if (!response.ok) {
+        if (response.status === 401) {
+          logout();
+          return;
+        }
+        throw new Error();
+      }
+      const data = (await response.json()) as { text: string };
       setPageText(data.text);
       setStatus("done");
     } catch {
@@ -28,11 +83,75 @@ export default function App() {
     }
   };
 
+  // Page de login/register
+  if (page === "login" || page === "register") {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center px-6">
+        <div className="w-full max-w-sm">
+          <h1 className="text-2xl font-semibold mb-2">Analyseur RGPD</h1>
+          <p className="text-sm text-gray-400 mb-8">
+            {page === "login" ? "Connectez-vous à votre compte" : "Créez un compte"}
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Mot de passe</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500"
+                onKeyDown={(e) => e.key === "Enter" && handleAuth(page === "login" ? "login" : "register")}
+              />
+            </div>
+
+            {authError && <p className="text-red-400 text-sm">{authError}</p>}
+
+            <button
+              onClick={() => handleAuth(page === "login" ? "login" : "register")}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium text-sm transition-colors"
+            >
+              {page === "login" ? "Se connecter" : "S'inscrire"}
+            </button>
+
+            <button
+              onClick={() => {
+                setPage(page === "login" ? "register" : "login");
+                setAuthError("");
+              }}
+              className="w-full text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              {page === "login" ? "Créer un compte" : "Déjà inscrit ? Se connecter"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // App principale
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="border-b border-gray-800 px-6 py-4">
-        <h1 className="text-xl font-semibold text-white">Analyseur RGPD</h1>
-        <p className="text-sm text-gray-400 mt-1">Vérifiez la conformité RGPD d'un site web automatiquement</p>
+      <div className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Analyseur RGPD</h1>
+          <p className="text-sm text-gray-400 mt-1">{email}</p>
+        </div>
+        <button
+          onClick={logout}
+          className="text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Se déconnecter
+        </button>
       </div>
 
       <div className="max-w-3xl mx-auto px-6 py-12">
@@ -91,7 +210,7 @@ export default function App() {
 
         {status === "error" && (
           <div className="bg-red-950 border border-red-800 rounded-lg p-6">
-            <p className="text-red-400 text-sm">Impossible de récupérer la page. Vérifie l'URL.</p>
+            <p className="text-red-400 text-sm">Impossible de récupérer la page.</p>
           </div>
         )}
       </div>
